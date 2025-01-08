@@ -1600,6 +1600,7 @@ static gboolean remmina_rdp_main(RemminaProtocolWidget *gp)
 {
 	TRACE_CALL(__func__);
 	const gchar *s;
+	const gchar *rdpw;
 	gchar *sm;
 	gchar *value;
 	const gchar *cs;
@@ -1834,6 +1835,15 @@ static gboolean remmina_rdp_main(RemminaProtocolWidget *gp)
 	/* Remote Desktop Gateway server address */
 	freerdp_settings_set_bool(rfi->clientContext.context.settings, FreeRDP_GatewayEnabled, FALSE);
 	s = remmina_plugin_service->file_get_string(remminafile, "gateway_server");
+	rdpw = remmina_plugin_service->file_get_string(remminafile, "rdpwfile");
+	if(rdpw){
+		REMMINA_PLUGIN_DEBUG("rdpw file path: %s", rdpw);
+		freerdp_settings_set_string(rfi->clientContext.context.settings, FreeRDP_RemoteApplicationProgram, "||ec59d556-b717-429b-f4ae-08dbacbf7dad");
+		freerdp_settings_set_bool(rfi->clientContext.context.settings, FreeRDP_GatewayArmTransport, TRUE);
+		freerdp_settings_set_bool(rfi->clientContext.context.settings, FreeRDP_GatewayRpcTransport, FALSE);
+		freerdp_settings_set_bool(rfi->clientContext.context.settings, FreeRDP_GatewayHttpTransport, FALSE);
+		//freerdp_settings_set_string(rfi->clientContext.context.settings, FreeRDP_ConnectionFile, rdpw);
+	}
 	if (s) {
 		cs = remmina_plugin_service->file_get_string(remminafile, "gwtransp");
 #if FREERDP_CHECK_VERSION(2, 3, 1)
@@ -2028,7 +2038,13 @@ static gboolean remmina_rdp_main(RemminaProtocolWidget *gp)
 		freerdp_settings_set_bool(rfi->clientContext.context.settings, FreeRDP_NlaSecurity, FALSE);
 		freerdp_settings_set_bool(rfi->clientContext.context.settings, FreeRDP_ExtSecurity, FALSE);
 		freerdp_settings_set_bool(rfi->clientContext.context.settings, FreeRDP_UseRdpSecurityLayer, TRUE);
-	} else if (g_strcmp0(cs, "tls") == 0) {
+	} else if (g_strcmp0(cs, "aad") == 0) {
+		freerdp_settings_set_bool(rfi->clientContext.context.settings, FreeRDP_RdpSecurity, FALSE);
+		freerdp_settings_set_bool(rfi->clientContext.context.settings, FreeRDP_TlsSecurity, FALSE);
+		freerdp_settings_set_bool(rfi->clientContext.context.settings, FreeRDP_NlaSecurity, FALSE);
+		freerdp_settings_set_bool(rfi->clientContext.context.settings, FreeRDP_ExtSecurity, FALSE);
+		freerdp_settings_set_bool(rfi->clientContext.context.settings, FreeRDP_AadSecurity, TRUE);
+	}else if (g_strcmp0(cs, "tls") == 0) {
 		freerdp_settings_set_bool(rfi->clientContext.context.settings, FreeRDP_RdpSecurity, FALSE);
 		freerdp_settings_set_bool(rfi->clientContext.context.settings, FreeRDP_TlsSecurity, TRUE);
 		freerdp_settings_set_bool(rfi->clientContext.context.settings, FreeRDP_NlaSecurity, FALSE);
@@ -3017,6 +3033,7 @@ static gpointer security_list[] =
 	"nla", N_("NLA protocol security"),
 	"tls", N_("TLS protocol security"),
 	"rdp", N_("RDP protocol security"),
+	"aad", N_("AAD protocol security"),
 	"ext", N_("NLA extended protocol security"),
 	NULL
 };
@@ -3054,6 +3071,7 @@ static gpointer gwtransp_list[] =
 {
 	"http", "HTTP",
 	"rpc",	"RPC",
+	"arm",  "ARM",
 	"auto", "Auto",
 	NULL
 };
@@ -3185,11 +3203,13 @@ static const RemminaProtocolSetting remmina_rdp_basic_settings[] =
  * e) Values for REMMINA_PROTOCOL_SETTING_TYPE_SELECT or REMMINA_PROTOCOL_SETTING_TYPE_COMBO
  * f) Setting Tooltip
  */
+
 static const RemminaProtocolSetting remmina_rdp_advanced_settings[] =
 {
 	{ REMMINA_PROTOCOL_SETTING_TYPE_SELECT,	  "quality",		    N_("Quality"),					 FALSE, quality_list,	  NULL														 },
 	{ REMMINA_PROTOCOL_SETTING_TYPE_SELECT,	  "security",		    N_("Security protocol negotiation"),		 FALSE, security_list,	  NULL														 },
 	{ REMMINA_PROTOCOL_SETTING_TYPE_SELECT,	  "gwtransp",		    N_("Gateway transport type"),			 FALSE, gwtransp_list,	  NULL														 },
+	{ REMMINA_PROTOCOL_SETTING_TYPE_FILE,	  "rdpwfile",		    N_("RDPW File for AVD"),			 FALSE, NULL,	  NULL														 },
 	{ REMMINA_PROTOCOL_SETTING_TYPE_SELECT,	  "tls-seclevel",	    N_("TLS Security Level"),			 	 FALSE, tls_seclevel,	  NULL														 },
 	{ REMMINA_PROTOCOL_SETTING_TYPE_SELECT,	  "freerdp_log_level",	    N_("FreeRDP log level"),				 FALSE, log_level,	  NULL														 },
 	{ REMMINA_PROTOCOL_SETTING_TYPE_TEXT,	  "freerdp_log_filters",    N_("FreeRDP log filters"),				 FALSE, NULL,		  N_("tag:level[,tag:level[,…]]")										 },
@@ -3307,7 +3327,6 @@ static RemminaFilePlugin remmina_rdpf =
 	remmina_rdp_file_import,                        // Import function
 	remmina_rdp_file_export_test,                   // Test export function
 	remmina_rdp_file_export,                        // Export function
-	".rdp",     				                   // Export extension
 	NULL
 };
 
@@ -3370,7 +3389,6 @@ G_MODULE_EXPORT gboolean remmina_plugin_entry(RemminaPluginService *service)
 		return FALSE;
 
 	remmina_rdpf.export_hints = _("Export connection in Windows .rdp file format");
-	remmina_rdpf.export_ext = ".rdp";
 
 	if (!service->register_plugin((RemminaPlugin *)&remmina_rdpf))
 		return FALSE;
